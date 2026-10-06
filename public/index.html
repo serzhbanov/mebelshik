@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цены Вияр → XML</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2129; --muted:#6b7280; --line:#e3e6ea; --accent:#2f6fde; --ok:#1a8a4a; --bad:#c4372f; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:16px; }
+  .drop { border:2px dashed var(--line); border-radius:8px; padding:22px; text-align:center; cursor:pointer; color:var(--muted); }
+  .drop.over { border-color: var(--accent); background:#eef3fd; }
+  textarea { width:100%; min-height:70px; font:inherit; padding:8px; border:1px solid var(--line); border-radius:6px; resize:vertical; }
+  button { font:inherit; padding:10px 18px; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.link { background:none; color:var(--accent); padding:0; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+  .muted { color: var(--muted); }
+  .err { color: var(--bad); }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-weight:600; color:var(--muted); }
+  td.num { text-align:right; white-space:nowrap; }
+  .tag { font-size:12px; padding:1px 6px; border-radius:4px; background:#eef3fd; color:var(--accent); }
+  .tag.no { background:#f3f4f6; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Актуальные цены Вияр → XML</h1>
+  <p class="sub">Загрузите таблицу «Расчет стоимости материалов» (.xls/.xlsx) или вставьте артикулы — получите XML для базы материалов.</p>
+
+  <section class="card">
+    <div class="drop" id="drop">Перетащите файл сюда или нажмите, чтобы выбрать<input type="file" id="file" accept=".xls,.xlsx,.csv" hidden></div>
+    <div class="row muted">или артикулы вручную (через пробел, запятую или с новой строки):</div>
+    <textarea id="manual" placeholder="36617, 157875, 95551"></textarea>
+    <div class="row"><button class="link" id="addManual">Добавить в список</button></div>
+  </section>
+
+  <section class="card" id="listCard" hidden>
+    <div class="row" style="margin-top:0;justify-content:space-between">
+      <strong id="listTitle"></strong>
+      <span><button class="link" id="selAll">выбрать все</button> · <button class="link" id="selViyar">только Вияр</button> · <button class="link" id="clear">очистить</button></span>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>Артикул</th><th>Наименование</th><th>Источник</th></tr></thead>
+      <tbody id="list"></tbody>
+    </table></div>
+    <div class="row">
+      <button id="go">Получить цены и скачать XML</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </section>
+
+  <section class="card" id="resultCard" hidden>
+    <div class="row" style="margin-top:0;justify-content:space-between">
+      <strong id="resultTitle"></strong>
+      <button class="link" id="again">скачать XML ещё раз</button>
+    </div>
+    <p class="err" id="missing"></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Артикул</th><th>Наименование</th><th>Ед.</th><th>Цена, грн</th><th>Группа</th></tr></thead>
+      <tbody id="result"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let items = [];          // { article, name, isViyar, checked }
+let lastXml = null, baseName = 'Вияр';
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+function addItems(rows) {
+  const known = new Set(items.map(i => i.article));
+  for (const r of rows) {
+    if (known.has(r.article)) continue;
+    known.add(r.article);
+    items.push({ ...r, checked: r.isViyar });
+  }
+  render();
+}
+
+function render() {
+  $('listCard').hidden = !items.length;
+  const n = items.filter(i => i.checked).length;
+  $('listTitle').textContent = `Выбрано ${n} из ${items.length}`;
+  $('go').disabled = !n;
+  $('list').innerHTML = items.map((i, idx) => `<tr>
+    <td><input type="checkbox" data-idx="${idx}" ${i.checked ? 'checked' : ''}></td>
+    <td>${esc(i.article)}</td><td>${esc(i.name)}</td>
+    <td><span class="tag ${i.isViyar ? '' : 'no'}">${i.isViyar ? 'viyar.ua' : 'другой'}</span></td></tr>`).join('');
+}
+
+$('list').addEventListener('change', e => {
+  const idx = e.target.dataset.idx;
+  if (idx !== undefined) { items[idx].checked = e.target.checked; render(); }
+});
+$('selAll').onclick = () => { items.forEach(i => i.checked = true); render(); };
+$('selViyar').onclick = () => { items.forEach(i => i.checked = i.isViyar); render(); };
+$('clear').onclick = () => { items = []; render(); };
+
+$('addManual').onclick = () => {
+  const arts = $('manual').value.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+  addItems(arts.map(a => ({ article: a, name: '', isViyar: true })));
+  $('manual').value = '';
+};
+
+async function loadFile(file) {
+  if (!file) return;
+  baseName = file.name.replace(/\.[^.]+$/, '');
+  $('status').textContent = '';
+  try {
+    const res = await fetch('/api/parse', { method: 'POST', body: file });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    if (!data.rows.length) throw new Error('В файле не найдено артикулов');
+    addItems(data.rows);
+  } catch (err) {
+    alert('Не удалось прочитать файл: ' + err.message);
+  }
+}
+
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+$('file').onchange = e => { loadFile(e.target.files[0]); e.target.value = ''; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]); };
+
+function download() {
+  const blob = new Blob([lastXml], { type: 'application/xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${baseName}_цены_${new Date().toISOString().slice(0, 10)}.xml`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+$('again').onclick = download;
+
+$('go').onclick = async () => {
+  const articles = items.filter(i => i.checked).map(i => i.article);
+  $('go').disabled = true;
+  $('status').className = 'muted';
+  $('status').textContent = `Запрашиваю ${articles.length} артикулов на viyar.ua…`;
+  try {
+    const res = await fetch('/api/prices', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ articles }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    lastXml = data.xml;
+    $('status').textContent = '';
+    $('resultCard').hidden = false;
+    $('resultTitle').textContent = `Найдено ${data.products.length} из ${articles.length}`;
+    $('missing').textContent = data.missing.length ? `Не найдены на viyar.ua: ${data.missing.join(', ')}` : '';
+    $('result').innerHTML = data.products.map(p => `<tr><td>${esc(p.article)}</td><td>${esc(p.name)}</td>
+      <td>${esc(p.unit)}</td><td class="num">${p.price.toFixed(2)}</td><td>${esc(p.group)}</td></tr>`).join('');
+    if (data.products.length) download();
+  } catch (err) {
+    $('status').className = 'err';
+    $('status').textContent = 'Ошибка: ' + err.message;
+  } finally {
+    $('go').disabled = false;
+  }
+};
+</script>
+</body>
+</html>
