@@ -40,7 +40,13 @@ function redirect(res, location, cookie) {
   res.end();
 }
 
+const clientIp = req => (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+
 const server = http.createServer(async (req, res) => {
+  const started = Date.now();
+  res.on('finish', () => {
+    console.log(`[http] ${req.method} ${req.url} → ${res.statusCode} (${Date.now() - started} мс) ${clientIp(req)}`);
+  });
   try {
     const { pathname } = new URL(req.url, 'http://localhost');
 
@@ -48,9 +54,12 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET') return auth.isAuthenticated(req) ? redirect(res, '/') : sendHtml(res, LOGIN_HTML);
       if (req.method === 'POST') {
         const form = new URLSearchParams((await readBody(req)).toString('utf8'));
-        if (auth.checkCredentials(form.get('username') || '', form.get('password') || '')) {
+        const username = form.get('username') || '';
+        if (auth.checkCredentials(username, form.get('password') || '')) {
+          console.log(`[auth] вход выполнен: ${username} ${clientIp(req)}`);
           return redirect(res, '/', auth.sessionCookie(req));
         }
+        console.warn(`[auth] неверный логин или пароль: "${username}" ${clientIp(req)}`);
         await new Promise(r => setTimeout(r, 1000)); // притормаживаем перебор паролей
         return redirect(res, '/login?error=1');
       }
@@ -64,17 +73,22 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && pathname === '/') {
       sendHtml(res, INDEX_HTML);
     } else if (req.method === 'POST' && pathname === '/api/parse') {
-      sendJson(res, 200, { rows: parseSpreadsheet(await readBody(req)) });
+      const rows = parseSpreadsheet(await readBody(req));
+      console.log(`[parse] файл прочитан: ${rows.length} арт., из них Вияр: ${rows.filter(r => r.isViyar).length}`);
+      sendJson(res, 200, { rows });
     } else if (req.method === 'POST' && pathname === '/api/prices') {
       const { articles } = JSON.parse((await readBody(req)).toString('utf8'));
       if (!Array.isArray(articles) || !articles.length) return sendJson(res, 400, { error: 'Список артикулов пуст' });
+      console.log(`[prices] запрошено ${articles.length} арт.`);
       const { products, missing } = await fetchProducts(articles);
-      sendJson(res, 200, { products, missing, xml: buildXml(products) });
+      const xml = buildXml(products);
+      console.log(`[prices] XML сформирован: ${products.length} материалов, ${Buffer.byteLength(xml)} байт`);
+      sendJson(res, 200, { products, missing, xml });
     } else {
       sendJson(res, 404, { error: 'Not found' });
     }
   } catch (err) {
-    console.error(err);
+    console.error(`[error] ${req.method} ${req.url}:`, err);
     sendJson(res, 500, { error: err.message });
   }
 });

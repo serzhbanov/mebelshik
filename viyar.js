@@ -38,10 +38,16 @@ async function fetchBatch(codes) {
   url.searchParams.set('extend_additional', 'true');
   url.searchParams.set('filter_query', JSON.stringify({ product_code: { $in: codes } }));
   url.searchParams.set('city_id', CITY_ID);
+  const started = Date.now();
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`viyar.ua ответил ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    console.error(`[viyar] ${codes.length} арт. → HTTP ${res.status} ${res.statusText} (${Date.now() - started} мс)`);
+    throw new Error(`viyar.ua ответил ${res.status} ${res.statusText}`);
+  }
   const data = await res.json();
-  return data.items || [];
+  const items = data.items || [];
+  console.log(`[viyar] запрос ${codes.length} арт. → получено ${items.length} (${Date.now() - started} мс)`);
+  return items;
 }
 
 async function fetchProducts(articles) {
@@ -52,10 +58,11 @@ async function fetchProducts(articles) {
       if (!byCode.has(item.product_code)) byCode.set(item.product_code, item);
     }
   }
-  return {
-    products: unique.filter(a => byCode.has(a)).map(a => toMaterial(byCode.get(a))),
-    missing: unique.filter(a => !byCode.has(a)),
-  };
+  const products = unique.filter(a => byCode.has(a)).map(a => toMaterial(byCode.get(a)));
+  const missing = unique.filter(a => !byCode.has(a));
+  console.log(`[viyar] итого: найдено ${products.length} из ${unique.length}` +
+    (missing.length ? `, не найдены: ${missing.join(', ')}` : ''));
+  return { products, missing };
 }
 
 const UNIT_MAP = { 'м2': 'м.кв', 'м.п.': 'м.пог' };
