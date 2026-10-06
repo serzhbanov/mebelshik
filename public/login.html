@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход — Цены Вияр</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2129; --muted:#6b7280; --line:#e3e6ea; --accent:#2f6fde; --bad:#c4372f; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px;
+         font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  form { width:100%; max-width:340px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 18px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:12px 0 4px; }
+  input { width:100%; font:inherit; padding:9px 10px; border:1px solid var(--line); border-radius:6px; }
+  input:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent; }
+  button { width:100%; margin-top:18px; font:inherit; padding:10px; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
+  .err { color:var(--bad); font-size:14px; margin:12px 0 0; }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <h1>Цены Вияр → XML</h1>
+  <p class="sub">Войдите, чтобы продолжить</p>
+  <label for="username">Логин</label>
+  <input id="username" name="username" autocomplete="username" required autofocus>
+  <label for="password">Пароль</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+  <p class="err" id="err" hidden>Неверный логин или пароль</p>
+  <button type="submit">Войти</button>
+</form>
+<script>
+  if (new URLSearchParams(location.search).has('error')) document.getElementById('err').hidden = false;
+</script>
+</body>
+</html>

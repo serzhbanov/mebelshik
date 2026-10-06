@@ -32,7 +32,10 @@
 </head>
 <body>
 <main>
-  <h1>Актуальные цены Вияр → XML</h1>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+    <h1>Актуальные цены Вияр → XML</h1>
+    <a href="/logout" style="color:var(--muted);font-size:14px">Выйти</a>
+  </div>
   <p class="sub">Загрузите таблицу «Расчет стоимости материалов» (.xls/.xlsx) или вставьте артикулы — получите XML для базы материалов.</p>
 
   <section class="card">
@@ -74,6 +77,14 @@
 const $ = id => document.getElementById(id);
 let items = [];          // { article, name, isViyar, checked }
 let lastXml = null, baseName = 'Вияр';
+
+// Сессия истекла — отправляем на страницу входа
+const nativeFetch = window.fetch;
+window.fetch = async (...args) => {
+  const res = await nativeFetch(...args);
+  if (res.status === 401) location.href = '/login';
+  return res;
+};
 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
 
